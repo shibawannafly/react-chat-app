@@ -7,6 +7,7 @@ import Message from './Message'
 import { connect } from 'react-redux'
 import { setUserPosts } from '../../actions'
 import MessagesLoader from './MessagesLoader'
+import Typing from './Typing'
 
 
 class Messages extends Component {
@@ -23,7 +24,10 @@ class Messages extends Component {
     searchResults: [],
     privateChannel: this.props.isPrivateChannel,
     privateMessagesRef: firebase.database().ref('privateMessages'),
-    isMessagesLoading: true
+    isMessagesLoading: true,
+    typingRef: firebase.database().ref('typing'),
+    typingUsers: [],
+    connectedRef: firebase.database().ref('.info/connected')
   }
 
 
@@ -38,6 +42,42 @@ class Messages extends Component {
 
   addListeners = channelId => {
     this.addMessageListener(channelId)
+    this.addTypingListeners(channelId)
+  }
+
+  addTypingListeners = channelId => {
+    let typingUsers = []
+    this.state.typingRef.child(channelId).on('child_added', snap => {
+      if(snap.key !== this.state.user.uid) {
+        typingUsers = typingUsers.concat({
+          id: snap.key,
+          name: snap.val()
+        })
+        this.setState({ typingUsers })
+      }
+    })
+
+    this.state.typingRef.child(channelId).on('child_removed', snap => {
+      const index = typingUsers.findIndex(user => user.id === snap.key)
+      if(index !== -1) {
+        typingUsers = typingUsers.filter(user => user.id !== snap.key)
+        this.setState({ typingUsers })
+      }
+    })
+
+    this.state.connectedRef.on('value', snap => {
+      if(snap.val() === true) {
+        this.state.typingRef
+          .child(channelId)
+          .child(this.state.user.uid)
+          .onDisconnect()
+          .remove(err => {
+            if(err !== null){
+              console.error(err)
+            }
+          })
+      }
+    })
   }
 
   addMessageListener = channelId => {
@@ -136,9 +176,24 @@ class Messages extends Component {
     return privateChannel ? privateMessagesRef : messagesRef
   }
 
+  displayTypingUsers = users => (
+    users.length > 0 && users.map(user => (
+      <div 
+        key = {user.id}
+        style = {{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          marginBottom: '0.2em' 
+        }}
+      >
+        <span className="user__typing">{user.name} is typing</span> <Typing/>
+      </div>
+    ))
+  )
+
   render() {
 
-    const { messagesRef, channel, user, messages, numUniqueUsers, searchTerm, searchResults, searchLoading, privateChannel, isMessagesLoading } = this.state
+    const { messagesRef, channel, user, messages, numUniqueUsers, searchTerm, searchResults, searchLoading, privateChannel, isMessagesLoading, typingUsers } = this.state
 
     return (
       <React.Fragment>
@@ -163,6 +218,7 @@ class Messages extends Component {
                   : 
                     this.displayMessages(messages) 
                 }
+                { this.displayTypingUsers(typingUsers) }
               </Comment.Group>
           }
           

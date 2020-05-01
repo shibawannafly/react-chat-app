@@ -17,7 +17,8 @@ export default class MessageForm extends Component {
     uploadState: '',
     uploadTask: null,
     storageRef: firebase.storage().ref(),
-    percentUploaded: 0
+    percentUploaded: 0,
+    typingRef: firebase.database().ref('typing')
   }
 
   openModal = () => this.setState({ modal: true })
@@ -53,7 +54,7 @@ export default class MessageForm extends Component {
 
   sendMessage = () => {
     const { getMessagesRef } = this.props
-    const { message, channel } = this.state
+    const { message, channel, typingRef, user } = this.state
 
     if (message) {
       this.setState({
@@ -69,6 +70,10 @@ export default class MessageForm extends Component {
             message: '',
             errors: []
           })
+          typingRef
+            .child(channel.id)
+            .child(user.uid)
+            .remove()
         })
         .catch(err => {
           console.log(err)
@@ -84,9 +89,22 @@ export default class MessageForm extends Component {
   }
 
   handleKeyDown = event => {
-    if (event.keyCode === 13) {
-      this.sendMessage()
+    const { message, typingRef, channel, user } = this.state
+    if (message) {
+      if(event.keyCode === 13){
+        this.sendMessage()
+      }
+      typingRef
+        .child(channel.id)
+        .child(user.uid)
+        .set(user.displayName)
+    } else{
+      typingRef
+        .child(channel.id)
+        .child(user.uid)
+        .remove()
     }
+    
   }
 
   getPath = () => {
@@ -152,6 +170,8 @@ export default class MessageForm extends Component {
         })
       })
   }
+
+  
 
   render() {
     const { errors, message, loading, modal, uploadState, percentUploaded } = this.state

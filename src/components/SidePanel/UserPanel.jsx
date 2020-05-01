@@ -13,12 +13,23 @@ export default class UserPanel extends Component {
     previewImage: '',
     croppedImage: '',
     blob: '',
-    imageScale: 1.5
+    imageScale: 1.5,
+    storageRef: firebase.storage().ref(''),
+    userRef: firebase.auth().currentUser,
+    usersRef: firebase.database().ref('users'),
+    metaData: {
+      contentType: 'image/jpeg'
+    },
+    uploadedCroppedImage: ''
   }
 
   openModal = () => this.setState({ modal: true })
 
-  closeModal = () => this.setState({ modal: false })
+  closeModal = () => this.setState({ 
+    modal: false,
+    previewImage: '',
+    croppedImage: ''
+  })
 
   handleSignout = () => {
     firebase
@@ -48,6 +59,46 @@ export default class UserPanel extends Component {
          })
       })
     }
+  }
+
+  uploadCroppedImage = () => {
+    const { storageRef, userRef, blob, metaData } = this.state
+    storageRef
+      .child(`avatar/user-${userRef.uid}`)
+      .put(blob, metaData)
+      .then(snap => {
+        snap.ref.getDownloadURL().then(downloadURL => {
+          this.setState({ uploadedCroppedImage: downloadURL }, () => this.changeAvatar())
+        })
+      })
+  }
+
+  changeAvatar = () => {
+    this.state.userRef
+      .updateProfile({
+        photoURL: this.state.uploadedCroppedImage,
+      })
+      .then(() => {
+        console.log('photoURL updated')
+        this.closeModal()
+      })
+      .catch(err => {
+        console.error(err)
+      })
+
+    this.state.usersRef
+      .child(this.state.user.uid)
+      .update({ avatar: this.state.uploadedCroppedImage })
+      .then(() => {
+        console.log('User avatar updated')
+        this.setState({ 
+          croppedImage: '',
+          previewImage: ''
+        })
+      })
+      .catch(err => {
+        console.error(err)
+      })
   }
 
   render() {
@@ -165,7 +216,7 @@ export default class UserPanel extends Component {
                   <Button
                     color = 'green'
                     inverted
-                    // onClick = {}
+                    onClick = { this.uploadCroppedImage }
                   >
                     <Icon name = 'save'/> Change Avatar
                   </Button>
